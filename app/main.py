@@ -1,4 +1,6 @@
 from typing import List
+import os
+from datetime import datetime
 
 from fastapi import Depends, FastAPI, HTTPException
 from sqlalchemy.orm import Session
@@ -9,17 +11,34 @@ import schemas
 from database import SessionLocal, engine
 
 
-models.Base.metadata.create_all(bind=engine)
+# Only create tables if engine is available
+if engine:
+    try:
+        models.Base.metadata.create_all(bind=engine)
+    except Exception as e:
+        print(f"Warning: Could not create database tables: {e}")
 app = FastAPI()
 
 
 # Dependency
 def get_db():
+    if not SessionLocal:
+        raise HTTPException(status_code=503, detail="Database not configured")
     db = SessionLocal()
     try:
         yield db
     finally:
         db.close()
+
+
+@app.get("/health")
+def health():
+    """Health check endpoint required by App Runner"""
+    return {
+        "status": "healthy",
+        "timestamp": datetime.utcnow().isoformat(),
+        "environment": os.getenv("ENVIRONMENT", "unknown")
+    }
 
 
 @app.get("/")
