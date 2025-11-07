@@ -1,0 +1,37 @@
+version: 0.2
+
+phases:
+  pre_build:
+    commands:
+      - echo "Logging in to Amazon ECR..."
+      - aws ecr get-login-password --region $AWS_DEFAULT_REGION | docker login --username AWS --password-stdin $AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com
+      - |
+        REPOSITORY_NAME="fastapisamplerunner-${ENVIRONMENT:-dev}"
+        REPOSITORY_URI=$(aws ecr describe-repositories --repository-names $REPOSITORY_NAME --region $AWS_DEFAULT_REGION --query 'repositories[0].repositoryUri' --output text 2>/dev/null || echo "")
+        if [ -z "$REPOSITORY_URI" ] || [ "$REPOSITORY_URI" = "None" ]; then
+          echo "Repository $REPOSITORY_NAME does not exist yet. It will be created during CDK deploy."
+          REPOSITORY_URI="$AWS_ACCOUNT_ID.dkr.ecr.$AWS_DEFAULT_REGION.amazonaws.com/$REPOSITORY_NAME"
+        fi
+        echo "Repository URI:$REPOSITORY_URI"
+      - COMMIT_HASH=$(echo $CODEBUILD_RESOLVED_SOURCE_VERSION | cut -c 1-7)
+      - IMAGE_TAG=${COMMIT_HASH}
+
+  build:
+    commands:
+      - echo "Building Docker image..."
+      - docker build --platform=linux/amd64 -t $REPOSITORY_URI:latest -t $REPOSITORY_URI:$IMAGE_TAG -f app/Dockerfile app/
+      - echo "Pushing Docker image to ECR..."
+      - docker push $REPOSITORY_URI:latest
+      - docker push $REPOSITORY_URI:$IMAGE_TAG
+      - echo "Image pushed successfully"
+
+  post_build:
+    commands:
+      - echo "IMAGE_URI=$REPOSITORY_URI:latest" > image-uri.env
+      - echo "IMAGE_TAG=$IMAGE_TAG" >> image-uri.env
+
+artifacts:
+  files:
+    - image-uri.env
+  name: DockerImageOutput
+

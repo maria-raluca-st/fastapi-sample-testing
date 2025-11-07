@@ -1,0 +1,16 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.11
+    commands:
+      - echo "Installing Python dependencies..."
+      - pip install -r app/requirements.txt || echo "No requirements.txt found"
+
+  build:
+    commands:
+      - echo "Running unit tests..."
+      - echo "No unit tests configured yet - skipping"
+      - echo "To add tests, create test files and configure pytest"
+

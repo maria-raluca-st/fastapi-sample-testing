@@ -1,0 +1,50 @@
+version: 0.2
+
+env:
+  variables:
+    NPM_CONFIG_PRODUCTION: "false"
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - echo "Installing CDK dependencies..."
+      - (cd infra && npm ci --no-progress)
+
+  pre_build:
+    commands:
+      - echo "Preparing deployment for environment:$ENVIRONMENT"
+      - source $CODEBUILD_SRC_DIR_DockerImageOutput/image-uri.env
+      - echo "Deploying with image:$IMAGE_URI"
+
+  build:
+    commands:
+      - echo "Deploying App Runner stack..."
+      - (cd infra && npm run build)
+      - |
+        (cd infra && npx cdk deploy FastApiRunner-${ENVIRONMENT} \
+          --context environment=${ENVIRONMENT} \
+          --require-approval never \
+          --progress events)
+      - echo "Deployment completed"
+
+  post_build:
+    commands:
+      - echo "Getting service URL..."
+      - SERVICE_URL=$(aws cloudformation describe-stacks --stack-name FastApiRunner-${ENVIRONMENT} --query 'Stacks[0].Outputs[?OutputKey==`ServiceUrl`].OutputValue' --output text || echo "")
+      - echo "SERVICE_URL=$SERVICE_URL" > service-outputs.env
+      - echo "Waiting for service to be ready..."
+      - |
+        if [ -n "$SERVICE_URL" ] && [ "$SERVICE_URL" != "None" ]; then
+          echo "Service URL:$SERVICE_URL"
+          echo "Health check endpoint:$SERVICE_URL/health"
+        else
+          echo "Service URL not available yet"
+        fi
+
+artifacts:
+  files:
+    - service-outputs.env
+  name: AppRunnerDeployOutput
+

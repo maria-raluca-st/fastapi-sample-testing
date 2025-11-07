@@ -1,0 +1,36 @@
+version: 0.2
+
+env:
+  variables:
+    NPM_CONFIG_PRODUCTION: "false"
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - echo "Installing CDK dependencies..."
+      - (cd infra && npm ci --no-progress)
+
+  build:
+    commands:
+      - echo "Checking for pipeline infrastructure changes..."
+      - (cd infra && npm run build)
+      - |
+        if (cd infra && npx cdk diff FastAPISamplePipelineStack \
+          --context pipelineOnly=true \
+          --context codeConnectionArn=$CODE_CONNECTION_ARN \
+          --context repositoryName=$REPOSITORY_NAME \
+          --context branchName=$BRANCH_NAME 2>&1) | grep -q "There were no differences"; then
+          echo "No pipeline changes detected, skipping deployment"
+        else
+          echo "Pipeline changes detected, deploying..."
+          (cd infra && npx cdk deploy FastAPISamplePipelineStack \
+            --context pipelineOnly=true \
+            --context codeConnectionArn=$CODE_CONNECTION_ARN \
+            --context repositoryName=$REPOSITORY_NAME \
+            --context branchName=$BRANCH_NAME \
+            --require-approval never \
+            --progress events)
+        fi
+

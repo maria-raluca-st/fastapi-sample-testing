@@ -1,0 +1,25 @@
+version: 0.2
+
+env:
+  variables:
+    NPM_CONFIG_PRODUCTION: "false"
+
+phases:
+  install:
+    runtime-versions:
+      nodejs: 20
+    commands:
+      - echo "Installing CDK dependencies..."
+      - (cd infra && npm ci --no-progress)
+
+  build:
+    commands:
+      - echo "Synthesizing CDK infrastructure..."
+      - (cd infra && npm run build)
+      - (cd infra && npx cdk synth --quiet)
+
+artifacts:
+  files:
+    - 'infra/cdk.out/**/*'
+  name: IacSynthOutput
+

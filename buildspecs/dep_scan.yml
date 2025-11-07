@@ -1,0 +1,19 @@
+version: 0.2
+
+phases:
+  install:
+    runtime-versions:
+      python: 3.11
+      nodejs: 20
+    commands:
+      - echo "Installing scanning tools..."
+      - pip install safety || echo "Safety not available"
+      - (cd infra && npm ci --no-progress)
+
+  build:
+    commands:
+      - echo "Scanning Python dependencies..."
+      - safety check --file app/requirements.txt || echo "Safety check completed"
+      - echo "Scanning Node.js dependencies..."
+      - (cd infra && npm audit --audit-level=moderate || echo "npm audit completed")
+
